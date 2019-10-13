@@ -65,6 +65,13 @@ var userModel =  mongoose.model('carUser', userSchema);
 //   REST APIs
 
 
+// HOMEPAGE
+
+app.get('/',function(req,res){
+    res.send("WELCOME!!    TO TEST THE APIs OF THIS APPLICATION YOU SHOULD USE *POSTMAN*");
+})
+
+
 // SIGNUP API FOR USER TO REGISTER ON WEBSITE
 
 app.post('/signup',function(req,res){
@@ -346,4 +353,4 @@ app.listen(app.get('port'), function (err) {
     if (err)
         console.log(err);
     console.log('Running on http://localhost:%s', app.get('port'));
-})
+})  
