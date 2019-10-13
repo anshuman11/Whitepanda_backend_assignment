@@ -75,7 +75,6 @@ app.get('/',function(req,res){
 // SIGNUP API FOR USER TO REGISTER ON WEBSITE
 
 app.post('/signup',function(req,res){
-
     let name = req.body.username;
     let password = req.body.password;
     bcrypt.hash(password, saltrounds, function(err, hash){
@@ -139,11 +138,8 @@ passport.deserializeUser(function(user, done){
 
 
 app.post('/admin/addCar',passport.authenticate('local'),(req,res)=>{
-    //console.log(req.body);
     var car = new carModel(req.body);
-    car.save(function(){
-        console.log('Car added!');
-    })
+    car.save()
     res.json({
         "status":"ok",
         "result":"car added into database!"
@@ -155,9 +151,8 @@ app.post('/admin/addCar',passport.authenticate('local'),(req,res)=>{
 
 
 app.post('/admin/deleteCar',passport.authenticate('local'),(req,res)=>{
-    carModel.deleteOne({carNumber : req.body.carNumber},function(){
-        console.log("car deleted");
-    }).exec();
+    carModel.deleteOne({carNumber : req.body.carNumber})
+    .exec();
     res.json({
         "status":"ok",
         "result":"car deleted from database!"
@@ -174,7 +169,7 @@ app.post('/admin/update',passport.authenticate('local'),(req,res)=>{
                                                          issueDate : req.body.issueDate,
                                                          returnDate : req.body.returnDate,
                                                          rentPerDay : req.body.rentPerDay
-                                                        }).exec(()=>console.log("car updated"))
+                                                        }).exec()
        res.json({
            "status" : "ok",
            "result" : "car updated with provided properties!"
@@ -252,16 +247,15 @@ app.post('/bookCar',passport.authenticate('local'),async function(req,res){
 
         // ADD BOOKED CAR TO USER'S ACCOUNT
 
-        userModel.where({username: req.body.username}).updateOne({$push:{data: bookedCar}},function(){
-            console.log("car booked!");
-        }).exec(()=>{
+        userModel.where({username: req.body.username}).updateOne({$push:{data: bookedCar}})
+        .exec(()=>{
 
             // UPDATE AVAILABILITY STATUS OF BOOKED CAR IN THE SYSTEM
 
-            carModel.updateOne({carNumber : req.body.carNumber},{currentAvailable : "false",
-                issueDate : req.body.issueDate,
-                returnDate : req.body.returnDate
-               }).exec(()=>console.log("car updated"));
+               carModel.updateOne({carNumber : req.body.carNumber},{ currentAvailable : "false",
+                                                                     issueDate : req.body.issueDate,
+                                                                     returnDate : req.body.returnDate
+               }).exec();
                 res.json({
                         "status" : "ok",
                         "result" : "car booked and system updated!"
@@ -275,19 +269,19 @@ app.post('/bookCar',passport.authenticate('local'),async function(req,res){
 
 
 app.post('/showCarDetails',async function(req,res){
-    var obj = await new Promise(function(resolve,reject){
+        var obj = await new Promise(function(resolve,reject){
            var temp = carModel.find({});
            resolve(temp);
-       })
-       if(req.body.carNumber){
+        })
+        if(req.body.carNumber){
            obj = obj.filter(function(val){
                if(req.body.carNumber == val.carNumber){
                    return val;
                } 
            })
-       }
+        }
        
-       data = obj.map(function(val){
+        data = obj.map(function(val){
         var temp = {
             "carNumber" : val.carNumber,
             "model" : val.model,
@@ -320,7 +314,6 @@ app.post('/showMyCarBookings',passport.authenticate('local'),async function(req,
     })
     var myData = myData.map(function(val){
         var data = val.data.map(function(item){
-                console.log(item);
                 var tempdata = {
                     "carNumber" : item.carNumber,
                     "model" : item.model,
