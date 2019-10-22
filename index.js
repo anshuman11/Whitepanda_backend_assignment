@@ -1,21 +1,25 @@
 // MODULES REQUIRED FOR PROJECT
-const express = require('express');
-const mongoose = require('mongoose');
-const app = express();
-const session = require('express-session');
-const bodyParser = require('body-parser');
-require('dotenv').config();
-const passport = require('passport');
+const express       = require('express');
+const mongoose      = require('mongoose');
+const app           = express();
+const session       = require('express-session');
+const bodyParser    = require('body-parser');
+const passport      = require('passport');
 const passportLocal = require('passport-local').Strategy;
-const cookieParser = require('cookie-parser');
-const bcrypt = require('bcryptjs');
-const saltrounds = 10;
+const cookieParser  = require('cookie-parser');
+const bcrypt        = require('bcryptjs');
+const saltrounds    = 10;
+require('dotenv').config();
 
 // MIDDLEWARES 
 
 app.use(bodyParser.json());
 app.use(cookieParser());
-app.use(session({secret: "ItIsSecret", saveUninitialized: true, resave: false}));
+app.use(session({
+    secret: "ItIsSecret",
+    saveUninitialized: true,
+    resave: false
+}));
 app.use(passport.initialize());
 app.use(passport.session());
 
@@ -27,22 +31,39 @@ mongoose.Promise = global.Promise;
 
 // CONNECT MONGOOSE TO MONGODB ATLAS
 
-mongoose.connect(url, { useNewUrlParser: true });
+mongoose.connect(url, {
+    useNewUrlParser: true
+});
 var db = mongoose.connection;
 db.on('error', function (err) {
-    throw err; 
+    throw err;
 });
 
 // DEFINE SCHEMA FOR CAR
 
 var carSchema = new mongoose.Schema({
-    carNumber : String,
-    model : String,
-    seatCapacity : Number,
-    rentPerDay : Number,
-    currentAvailable : String,
-    issueDate : Date,
-    returnDate : Date
+    carNumber: {
+        type: String,
+        required: [true, "Please! provide **Car Number** to add this car into database ?"]
+    },
+    model: {
+        type: String,
+        required: [true, "Please! provide **Model** of this car to add into database ?"]
+    },
+    seatCapacity: {
+        type: Number,
+        required: [true, "Please! provide **Seat Capacity** to add this car into database ?"]
+    },
+    rentPerDay: {
+        type: Number,
+        required: [true, "Please! provide **RentPerDay** to add this car into database ?"]
+    },
+    currentAvailable: {
+        type: String,
+        required: [true, "Please! provide **Current Availability** to add this car into database ?"]
+    },
+    issueDate: Date,
+    returnDate: Date
 });
 
 // MAKE CAR MODEL BASED ON CAR SCHEMA
@@ -55,11 +76,11 @@ var userSchema = new mongoose.Schema({
     username: String,
     password: String,
     data: Array
-})
+});
 
 // CREATE USER MODEL BASED ON USER SCHEMA
 
-var userModel =  mongoose.model('carUser', userSchema);
+var userModel = mongoose.model('carUser', userSchema);
 
 
 //   REST APIs
@@ -67,283 +88,394 @@ var userModel =  mongoose.model('carUser', userSchema);
 
 // HOMEPAGE
 
-app.get('/',function(req,res){
-    res.send("WELCOME!!    TO TEST THE APIs OF THIS APPLICATION YOU SHOULD USE *POSTMAN*");
-})
+app.get('/', function (req, res) {
+    res.send("WELCOME!!.....TO TEST THE APIs OF THIS APPLICATION YOU SHOULD USE *POSTMAN*");
+});
 
 
 // SIGNUP API FOR USER TO REGISTER ON WEBSITE
 
-app.post('/signup',function(req,res){
-    let name = req.body.username;
-    let password = req.body.password;
-    bcrypt.hash(password, saltrounds, function(err, hash){
-        if(err) throw err;
-        var user = new userModel({
-            username: req.body.username,
-            password: hash
-        });
-        user.save(function(err){
-            if(err)
-                throw err;
-        });
-        res.send("you registered succesfully..for car rental service!");
-    })  
-})
+app.post('/signup', function (req, res) {
+    if (req.body.username) {
+        userModel.findOne({
+                username: req.body.username
+            })
+            .exec()
+            .then((doc) => {
+                if (doc) {
+                    res.send("Sorry!!..This **username** is already taken..Try some other");
+                } else {
+                    if (req.body.password) {
+                        bcrypt.hash(req.body.password, saltrounds, function (err, hash) {
+                            if (err) {
+                                res.send("Some error occurred!!..User not registered");
+                            } else {
+                                var user = new userModel({
+                                    username: req.body.username,
+                                    password: hash
+                                });
+                                user.save(function (err) {
+                                    if (err) {
+                                        res.send("Some error occurred!!..User not saved");
+                                    } else {
+                                        res.send("You registered succesfully..for car rental service!");
+                                    }
+                                });
+
+                            }
+
+                        });
+                    } else {
+                        res.send("Warning!!..You must provide **password** to register");
+                    }
+                }
+            })
+            .catch((err) => {
+                res.send("Some error occurred !!.....Please try again after somtime");
+            });
+    } else {
+        res.send("Warning!!..Username cannot be empty");
+    }
+
+});
 
 
 // LOGIN API FOR REGISTERD USERS
 
 
-app.post('/login', passport.authenticate('local', 
-    {
-        successRedirect: '/success',
-        failureRedirect: '/failed'
-    }
-))
+app.post('/login', passport.authenticate('local', {
+    successRedirect: '/success',
+    failureRedirect: '/failed'
+}));
 
 // USE LOCAL STRATEGY FOR AUTHENTICATION OF USERS
 
 passport.use(new passportLocal(
-    function(username, password, done){
-    userModel.find({username: username},function(err,doc){
-    console.log(doc)
-    if(err)
-        throw err;
-    if(!doc){
-        res.render('login',{message: 'User not found!'});
-    }
-    else{
-        passw = doc[0].password;
-        bcrypt.compare(password, passw, function(err, res) {
-            if(res)  return done(null, username)
-            else  return done(null, false, {message: 'Password is incorrect'})
-        });   
-        }
-    })
-}))
-
-
+    function (username, password, done) {
+        userModel.findOne({
+            username: username
+        }, function (err, doc) {
+            if (err)
+                throw err;
+            if (!doc) {
+                return done(null, false, {
+                    message: 'User not found'
+                });
+            } else {
+                passw = doc.password;
+                bcrypt.compare(password, passw, function (err, res) {
+                    if (res) return done(null, username);
+                    else return done(null, false, {
+                        message: 'Password is incorrect'
+                    });
+                });
+            }
+        });
+    }));
 // SERIALIZE AND DESERIALIZE USER TO MAINTAIN A SESSION FOR THE USER
 
-passport.serializeUser(function(user, done){
-    done(null, user)
-})
-passport.deserializeUser(function(user, done){
-    done(null, user)
-})
+passport.serializeUser(function (user, done) {
+    done(null, user);
+});
+passport.deserializeUser(function (user, done) {
+    done(null, user);
+});
 
 
 // API TO ADD THE CARS IN THE SYSTEM ( SHOULD BE ONLY FOR ADMIN )
 
 
-app.post('/admin/addCar',passport.authenticate('local'),(req,res)=>{
+app.post('/admin/addCar', passport.authenticate('local'), function (req, res) {
     var car = new carModel(req.body);
-    car.save()
-    res.json({
-        "status":"ok",
-        "result":"car added into database!"
+    car.save(function (err) {
+        if (err) {
+            var errorResponse;
+            if (err.errors.carNumber != undefined)
+                errorResponse = err.errors.carNumber.properties;
+            else if (err.errors.model != undefined)
+                errorResponse = err.errors.model.properties;
+            else if (err.errors.seatCapacity != undefined)
+                errorResponse = err.errors.seatCapacity.properties;
+            else if (err.errors.rentPerDay != undefined)
+                errorResponse = err.errors.rentPerDay.properties;
+            else if (err.errors.currentAvailable != undefined)
+                errorResponse = err.errors.currentAvailable.properties;
+            res.json(errorResponse);
+        } else
+            res.json({
+                "status": "ok",
+                "car_id": car._id,
+                "result": "Car added into database!"
+            });
     });
-})
+
+});
 
 
 // API TO DELETE THE CARS FROM THE SYSTEM ( SHOULD BE ONLY FOR ADMIN )
 
 
-app.post('/admin/deleteCar',passport.authenticate('local'),(req,res)=>{
-    carModel.deleteOne({carNumber : req.body.carNumber})
-    .exec();
-    res.json({
-        "status":"ok",
-        "result":"car deleted from database!"
-    });
-})
+app.post('/admin/deleteCar', passport.authenticate('local'), async function (req, res) {
+    var deletedCar = await carModel.findById(req.body._id)
+        .exec()
+        .then((doc) => {
+            return doc;
+        })
+        .catch((err) => {
+            res.send("Some error occurred !!.....Please check your **car_id** again");
+        });
+    if (deletedCar.currentAvailable == "false") {
+        res.send("Car cannot be deleted!! This car is currently booked to someuser");
+    } else {
+        carModel.deleteOne({
+                _id: req.body._id
+            })
+            .exec()
+            .then(() => {
+                res.json({
+                    "status": "ok",
+                    "result": "Car is successfully deleted from database!"
+                });
+            })
+            .catch((err) => {
+                res.json({
+                    "status": "Bad!",
+                    "result": "Some error occured! Car is not deleted from database"
+                });
+            });
+
+    }
+});
 
 
 // API TO UPDATE THE CAR FEATURES MANUALLY IN THE SYSTEM ( SHOULD BE ONLY FOR ADMIN )
 
 
-app.post('/admin/update',passport.authenticate('local'),(req,res)=>{
-    carModel.updateOne({carNumber : req.body.carNumber},{
-                                                         currentAvailable : req.body.currentAvailable,
-                                                         issueDate : req.body.issueDate,
-                                                         returnDate : req.body.returnDate,
-                                                         rentPerDay : req.body.rentPerDay
-                                                        }).exec()
-       res.json({
-           "status" : "ok",
-           "result" : "car updated with provided properties!"
-       })                                                 
-})
+app.post('/admin/update', passport.authenticate('local'), async function (req, res) {
+    var updatedCar = await carModel.findById(req.body._id)
+        .exec()
+        .then((doc) => {
+            return doc;
+        })
+        .catch((err) => {
+            res.send("Some error occurred !!.....Please check your **car_id** again");
+        });
+    if (updatedCar.currentAvailable == "false") {
+        res.send("Car cannot be updated!! This car is currently booked to someuser");
+    } else {
+        carModel.updateOne({
+                _id: req.body._id
+            }, req.body)
+            .exec()
+            .then(() => {
+                res.json({
+                    "status": "ok",
+                    "result": "Car updated with provided properties!"
+                });
+            })
+            .catch((err) => {
+                res.send("Some error occurred!..Car is not updated");
+            });
+    }
+
+
+});
 
 // API TO VIEW THE ALL CARS WITH USING FILTERS BASED ON CAR PROPERTIES FOR ANY USER
 
 
-app.post('/viewCars',async function(req,res){ 
-    var obj = await new Promise(function(resolve,reject){
+app.post('/viewCars', async function (req, res) {
+    var allCars = await new Promise(function (resolve, reject) {
         var temp = carModel.find({});
         resolve(temp);
-    })
-    if(req.body.seatCapacity){
-        obj = obj.filter(function(val){
-            if(req.body.seatCapacity == val.seatCapacity){
-                return val;
+    });
+    if (req.body.seatCapacity) {
+        allCars = allCars.filter(function (car) {
+            if (req.body.seatCapacity == car.seatCapacity) {
+                return car;
             }
-        })
+        });
     }
 
-    if(req.body.model){
-        obj = obj.filter(function(val){
-            if(req.body.model == val.model){
-                return val;
+    if (req.body.model) {
+        allCars = allCars.filter(function (car) {
+            if (req.body.model == car.model) {
+                return car;
             }
-        })
+        });
     }
 
-    if(req.body.rentPerDay){
-        obj = obj.filter((val)=>{
-                if(req.body.rentPerDay == val.rentPerDay){
-                return val;
-                }
-        })
+    if (req.body.rentPerDay) {
+        allCars = allCars.filter(function (car) {
+            if (req.body.rentPerDay == car.rentPerDay) {
+                return car;
+            }
+        });
     }
 
 
-    if(req.body.date){ 
-        obj = obj.filter(function(val){
-            if(val.issueDate){
+    if (req.body.date) {
+        allCars = allCars.filter(function (car) {
+            if (car.issueDate) {
                 var date1 = new Date(req.body.date.issueDate);
-                var date2 = new Date(val.issueDate);
+                var date2 = new Date(car.issueDate);
                 var date3 = new Date(req.body.date.returnDate);
-                var date4 = new Date(val.returnDate);
-            if((date1 > date4) || (date3 < date2)){
-                return val;
-            }}
-            else 
-            return val;
-        })
-    }  
+                var date4 = new Date(car.returnDate);
+                if ((date1 > date4) || (date3 < date2)) {
+                    return car;
+                }
+            } else
+                return car;
+        });
+    }
 
-    data = obj.map(function(val){
-        var temp = {
-            "carNumber" : val.carNumber,
-            "model" : val.model,
-            "seatCapacity" : val.seatCapacity,
-            "rentPerDay" : val.rentPerDay
+    allFilteredCars = allCars.map(function (car) {
+        var filteredCar = {
+            "carNumber": car.carNumber,
+            "model": car.model,
+            "currentAvailable": car.currentAvailable
         };
-        return temp;
-    })
-    if(data == "")
-    res.send("No car exists for these filters..!!") ;
-    else   
-    res.json(data);
-})
+        return filteredCar;
+    });
+    if (allFilteredCars == null)
+        res.send("No such car exists for these filters..!!");
+    else
+        res.json(allFilteredCars);
+});
 
 
 // API TO BOOK THE CAR FOR REGISTERED USER
 
-app.post('/bookCar',passport.authenticate('local'),async function(req,res){
-        let bookedCar = await carModel.find({carNumber: req.body.carNumber});
+app.post('/bookCar', passport.authenticate('local'), async function (req, res) {
+    if (req.body._id == null) {
+        res.send("Sorry!! Booking process cannot be initialized without **car_id** ");
+    } else {
+        var bookedCar = await carModel.findById(req.body._id)
+            .exec()
+            .then((doc) => {
+                return doc;
+            })
+            .catch((err) => {
+                res.send("Some error occurred !!.....Please check your **car_id** again");
+            });
+        if (bookedCar.currentAvailable != "true") {
+            res.send("Sorry!!! This car is already booked to someuser");
+        } else {
+            if (req.body.issueDate == null || req.body.returnDate == null) {
+                res.send("Please! provide **issudate** and **return date** to book this car");
+            } else {
 
-        // ADD BOOKED CAR TO USER'S ACCOUNT
+                // ADD BOOKED CAR TO USER'S ACCOUNT
 
-        userModel.where({username: req.body.username}).updateOne({$push:{data: bookedCar}})
-        .exec(()=>{
+                userModel.where({
+                        username: req.body.username
+                    })
+                    .updateOne({
+                        $push: {
+                            data: bookedCar
+                        }
+                    })
+                    .exec(() => {
 
-            // UPDATE AVAILABILITY STATUS OF BOOKED CAR IN THE SYSTEM
+                        // UPDATE AVAILABILITY STATUS OF BOOKED CAR IN THE SYSTEM
 
-               carModel.updateOne({carNumber : req.body.carNumber},{ currentAvailable : "false",
-                                                                     issueDate : req.body.issueDate,
-                                                                     returnDate : req.body.returnDate
-               }).exec();
-                res.json({
-                        "status" : "ok",
-                        "result" : "car booked and system updated!"
-                })     
-        })
-                       
-})
+                        carModel.updateOne({
+                                _id: req.body._id
+                            }, {
+                                currentAvailable: "false",
+                                issueDate: req.body.issueDate,
+                                returnDate: req.body.returnDate
+                            })
+                            .exec()
+                            .then(() => {
+                                res.json({
+                                    "status": "ok",
+                                    "result": "The Car booked for you!.. and system updated!"
+                                });
+                            })
+                            .catch((err) => {
+                                res.send("Some error occurred in booking this car!!...Please try after sometime");
+                            });
+
+                    });
+
+            }
+
+
+        }
+    }
+});
 
 
 // API TO SHOW ALL DETAILS OF PARTICULAR CAR FOR ANY USER
 
 
-app.post('/showCarDetails',async function(req,res){
-        var obj = await new Promise(function(resolve,reject){
-           var temp = carModel.find({});
-           resolve(temp);
-        })
-        if(req.body.carNumber){
-           obj = obj.filter(function(val){
-               if(req.body.carNumber == val.carNumber){
-                   return val;
-               } 
-           })
-        }
-       
-        data = obj.map(function(val){
-        var temp = {
-            "carNumber" : val.carNumber,
-            "model" : val.model,
-            "seatCapacity" : val.seatCapacity,
-            "rentPerDay" : val.rentPerDay,
-            "issueDate" :  val.issueDate,
-            "returnDate" : val.returnDate,
-            "currentAvailable" : val.currentAvailable
-         }
-        return temp;
-    }) 
-    if(data == "")
-    res.send("No such car exists..!!");  
-    else    
-    res.json(data);}
+app.post('/showCarDetails', async function (req, res) {
+        var car = await carModel.findById(req.body._id)
+            .exec()
+            .then((doc) => {
+                return doc;
+            })
+            .catch((err) => {
+                res.send("Some error occurred !!.....Please check your **car_id** again");
+            });
+        let carDetails = {
+            "car_id": car._id,
+            "carNumber": car.carNumber,
+            "model": car.model,
+            "seatCapacity": car.seatCapacity,
+            "rentPerDay": car.rentPerDay,
+            "currentAvailable": car.currentAvailable
+        };
+        res.json(carDetails);
 
-)
+    }
+
+);
 
 // API TO SHOW ALL BOOKED CARS OF PARTICULAR USER
 
 
-app.post('/showMyCarBookings',passport.authenticate('local'),async function(req,res){
-    var myData =await userModel.find({ username : req.body.username},function(err,doc){
-        if(err) throw err;
-        return doc;
-    })
-    var myData = myData.filter(function(item){
-        if(item.data.length != 0)
-            return item;
-    })
-    var myData = myData.map(function(val){
-        var data = val.data.map(function(item){
-                var tempdata = {
-                    "carNumber" : item.carNumber,
-                    "model" : item.model,
-                    "seatCapacity" : item.seatCapacity,
-                    "rentPerDay" : item.rentPerDay,
-                    "issueDate" : item.issueDate,
-                    "returnDate" : item.returnDate
-                    };
-                    return tempdata;
-            })
-            return data;
-    })
-    if(myData == "")
-    res.send("No history here..!!");  
-    else    
-    res.json(myData);
-})
+app.post('/showMyCarBookings', passport.authenticate('local'), async function (req, res) {
+    var myUser = await userModel.findOne({
+        username: req.body.username
+    }, function (err, doc) {
+        if (err) {
+            res.send("Something went wrong!!..Please try after sometime");
+        } else {
+            return doc;
+        }
+    });
+    var userHistory = myUser.data.map(function (car) {
+        var tempdata = {
+            "car_id": car._id,
+            "carNumber": car.carNumber,
+            "model": car.model,
+            "seatCapacity": car.seatCapacity,
+            "rentPerDay": car.rentPerDay,
+            "issueDate": car.issueDate,
+            "returnDate": car.returnDate
+        };
+        return tempdata;
+    });
+    if (userHistory == null)
+        res.send("No history here..!!");
+    else
+        res.json(userHistory);
+});
 
-app.get('/failed',(req,res)=>{
+app.get('/failed', (req, res) => {
     res.send("Login failed.. username or password incorrect!");
-})
+});
 
-app.get('/success',(req,res)=>{
+app.get('/success', (req, res) => {
     res.send("Login successfully!");
-})
+});
 
-app.set('port', process.env.PORT || 3000);
+app.set('port', process.env.PORT || 5000);
 
 app.listen(app.get('port'), function (err) {
     if (err)
         console.log(err);
     console.log('Running on http://localhost:%s', app.get('port'));
-})  
+});
